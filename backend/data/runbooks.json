@@ -1,0 +1,58 @@
+[
+  {
+    "id": "RB-PAY-01",
+    "service": "Payment API",
+    "title": "Payment API - Database Connection Pool Exhaustion SOP",
+    "trigger_symptoms": ["ConnectionPoolTimeoutException", "pool exhaustion", "timeout waiting for connection", "latency > 5000ms"],
+    "standard_operating_procedure": "1. Check database connection pool metrics via CloudWatch or Grafana (HikariCP/PgBouncer active vs idle connections).\n2. Inspect database active connections: SELECT count(*), state FROM pg_stat_activity GROUP BY state;\n3. Check if recent deployments modified max_connections, connectionTimeout, or idleTimeout in application.yml or Helm values.\n4. If active connections equals max_pool_size, temporarily scale connection pool size or inspect long-running unindexed transactions.\n5. Restart application pods with increased pool configuration if approved."
+  },
+  {
+    "id": "RB-PAY-02",
+    "service": "Payment API",
+    "title": "Payment API - Third-Party Payment Gateway Timeout SOP",
+    "trigger_symptoms": ["GatewayTimeoutException", "Stripe API timeout", "504 upstream timeout"],
+    "standard_operating_procedure": "1. Verify third-party status page for Stripe/Adyen outages.\n2. Inspect circuit breaker metrics: payment_gateway_circuit_breaker_state.\n3. Verify egress NAT gateway bandwidth and packet drop metrics.\n4. Switch primary processor to fallback processor if degradation exceeds 5 minutes."
+  },
+  {
+    "id": "RB-AUTH-01",
+    "service": "Authentication Service",
+    "title": "Authentication Service - JWT Token Validation Failure SOP",
+    "trigger_symptoms": ["SignatureVerificationException", "JWT expired", "KeyNotFoundException", "JWKS fetch failure"],
+    "standard_operating_procedure": "1. Verify JWKS endpoint reachable: curl -s https://auth.internal.corp/.well-known/jwks.json.\n2. Inspect secret manager for recent key rotations or missing public keys.\n3. Check pod environment variables: JWT_SIGNING_KEY_ID and JWT_PUBLIC_KEY.\n4. Rollback deployment if key rotation occurred without dual-key tolerance window."
+  },
+  {
+    "id": "RB-REDIS-01",
+    "service": "Redis/Cache Service",
+    "title": "Redis Cache - Out Of Memory (OOM) & Eviction Storm SOP",
+    "trigger_symptoms": ["OOM command not allowed", "maxmemory reached", "eviction rate spike", "cache stampede"],
+    "standard_operating_procedure": "1. Run redis-cli INFO memory to verify used_memory vs maxmemory.\n2. Inspect maxmemory-policy (volatile-lru, allkeys-lru, or noeviction).\n3. Check top memory-consuming keys with redis-cli --bigkeys or MEMORY USAGE.\n4. If memory exhausted due to missing TTLs, apply emergency TTL script or scale Redis cluster node memory."
+  },
+  {
+    "id": "RB-QUEUE-01",
+    "service": "Message Queue",
+    "title": "Message Queue - Kafka Consumer Group Rebalance Loop SOP",
+    "trigger_symptoms": ["CommitFailedException", "rebalance in progress", "consumer lag spike", "heartbeat timeout"],
+    "standard_operating_procedure": "1. Check consumer group lag: kafka-consumer-groups.sh --describe --group payment-processor-group.\n2. Check max.poll.interval.ms vs message processing time in worker logs.\n3. If downstream processing exceeds timeout, increase max.poll.interval.ms or decrease max.poll.records.\n4. Restart stuck consumer pods sequentially to stabilize rebalance."
+  },
+  {
+    "id": "RB-GATEWAY-01",
+    "service": "API Gateway",
+    "title": "API Gateway - Cascading Circuit Breaker & 502/504 SOP",
+    "trigger_symptoms": ["502 Bad Gateway", "504 Gateway Timeout", "CircuitBreakerOpenException", "upstream connect error"],
+    "standard_operating_procedure": "1. Inspect Envoy / NGINX access logs for upstream service breakdown.\n2. Check endpoint health checks: curl -I http://upstream-service:8080/health.\n3. Verify Kubernetes Service endpoints: kubectl get endpoints <service-name>.\n4. Temporarily raise circuit breaker failure rate threshold if false positive trips occur during traffic spike."
+  },
+  {
+    "id": "RB-ORDER-01",
+    "service": "Order Service",
+    "title": "Order Service - Database Lock Contention SOP",
+    "trigger_symptoms": ["LockWaitTimeoutException", "deadlock detected", "order creation latency spike"],
+    "standard_operating_procedure": "1. Query PostgreSQL locks: SELECT blocked_locks.pid AS blocked_pid, blocking_locks.pid AS blocking_pid FROM pg_catalog.pg_locks blocked_locks ...;\n2. Terminate blocking rogue transaction if safe: SELECT pg_cancel_backend(blocking_pid);\n3. Review recent order batch worker commit order for deadlock conditions."
+  },
+  {
+    "id": "RB-NOTIF-01",
+    "service": "Notification Service",
+    "title": "Notification Service - Rate Limit Throttling SOP",
+    "trigger_symptoms": ["429 Too Many Requests", "SES rate exceeded", "Twilio throttling"],
+    "standard_operating_procedure": "1. Check provider quota dashboards (Amazon SES / Twilio / SendGrid).\n2. Enable exponential backoff in notification queue consumer.\n3. Request temporary quota increase from vendor or route non-critical notifications to delayed queue."
+  }
+]

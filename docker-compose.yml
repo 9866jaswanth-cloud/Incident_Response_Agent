@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  # Official Hindsight Memory Service
+  hindsight:
+    image: python:3.11-slim
+    container_name: incident-response-hindsight
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONUTF8=1
+      - HINDSIGHT_API_LLM_PROVIDER=mock
+    command: >
+      sh -c "pip install --no-cache-dir hindsight-api==0.10.1 &&
+             hindsight-api --host 0.0.0.0 --port 8888"
+    ports:
+      - "8888:8888"
+    volumes:
+      - hindsight-data:/root/.hindsight
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Incident Response Agent (Unified Frontend + Backend)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: incident-response-agent
+    restart: unless-stopped
+    depends_on:
+      hindsight:
+        condition: service_healthy
+    environment:
+      - HINDSIGHT_BASE_URL=http://hindsight:8888
+      - HINDSIGHT_BANK_ID=incident-response-bank
+      - ENVIRONMENT=production
+      - PORT=8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - app-data:/app/backend/data
+
+volumes:
+  hindsight-data:
+  app-data:

@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: incident-response-agent
+    env: docker
+    dockerfilePath: Dockerfile
+    plan: standard
+    region: oregon
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: ENVIRONMENT
+        value: production
+      - key: HINDSIGHT_BASE_URL
+        value: http://127.0.0.1:8888
+      - key: HINDSIGHT_BANK_ID
+        value: incident-response-bank
+      - key: HINDSIGHT_API_LLM_PROVIDER
+        value: mock
+    healthCheckPath: /health
